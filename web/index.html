@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keli Live — prototype (dummy data)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <aside id="side">
+    <header>
+      <h1>Keli Live <span class="tag">prototype · dummy data</span></h1>
+      <p class="sub">Road conditions from every Finnish road camera — not just where the sensors are.</p>
+    </header>
+
+    <section>
+      <h2>Live · Helsinki <button id="liveBtn" class="small">Refresh</button></h2>
+      <p id="liveStatus" class="hint">Starting…</p>
+      <ul id="liveList" class="livelist"></ul>
+      <p class="hint">Real cameras and road sensors from Digitraffic. Black outline = live. Solid fill = sensor within 0.5 km; dashed = sensor further away.</p>
+    </section>
+
+    <h2>Demo · all Finland (dummy data)</h2>
+    <section class="stats" id="stats"></section>
+
+    <section>
+      <h2>Replay <span id="clock" class="clock"></span></h2>
+      <div class="replay">
+        <button id="play" title="Play / pause">▶</button>
+        <input id="slider" type="range" min="0" max="36" value="36">
+      </div>
+      <p class="hint">Last 6 hours, one step = 10 minutes. Watch the cold front move south.</p>
+    </section>
+
+    <section>
+      <h2>Legend</h2>
+      <div id="legend" class="legend"></div>
+      <p class="hint"><span class="dot solid"></span> filled = confirmed by a roadside sensor
+        &nbsp; <span class="dot ring"></span> ring = AI prediction from the camera only</p>
+    </section>
+
+    <section>
+      <h2>Alerts <span class="count" id="alertCount"></span></h2>
+      <ul id="alerts" class="alerts"></ul>
+    </section>
+
+    <section>
+      <h2>Route brief</h2>
+      <select id="route"></select>
+      <div id="brief" class="brief"></div>
+    </section>
+
+    <footer>Map: Leaflet + © OpenStreetMap contributors (no API key). Real version: Fintraffic / digitraffic.fi, CC BY 4.0.</footer>
+  </aside>
+
+  <main>
+    <div id="map"></div>
+    <div id="detail" class="detail hidden"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+  <script src="live.js"></script>
+</body>
+</html>
