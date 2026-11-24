@@ -7,15 +7,19 @@ and how far each camera is from its paired weather station.
 Usage: python inspect_sensors.py > sensor_report.txt
 Data: Fintraffic / digitraffic.fi, license CC 4.0 BY
 """
+
 import collections
 import json
 import math
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import requests
 
 BASE = "https://tie.digitraffic.fi"
 H = {"Digitraffic-User": "KeliLive/sensor-inspection", "Accept-Encoding": "gzip"}
+STALE_MIN = 60  # readings older than this are not labels (CLAUDE.md sensor rules)
+PAIRING_SAMPLE = 150  # detail calls are rate-friendly; 150 cameras give a solid estimate
+DIST_BUCKETS_KM = (0.1, 0.5, 2.0)  # 0.5 km is the labelling threshold
 SURFACE = ("TIE_", "KELI", "VAROITUS", "PINTASIGNAALI", "OPTISEN_ANTURIN", "KITKA")
 
 
@@ -31,7 +35,10 @@ def is_surface(name):
 
 def km(a, b):
     lat1, lon1, lat2, lon2 = map(math.radians, (*a, *b))
-    h = math.sin((lat2 - lat1) / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    h = (
+        math.sin((lat2 - lat1) / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin((lon2 - lon1) / 2) ** 2
+    )
     return 6371 * 2 * math.asin(math.sqrt(h))
 
 
@@ -55,7 +62,7 @@ for s in meta:
 print("\n" + "=" * 70, "\n2. CURRENT VALUES ACROSS ALL STATIONS\n" + "=" * 70)
 data = get("/api/weather/v1/stations/data")
 stations = listify(data, "stations")
-now = datetime.now(timezone.utc)
+now = datetime.now(UTC)
 coverage = collections.Counter()
 values = collections.defaultdict(collections.Counter)
 ages = collections.defaultdict(list)
@@ -87,33 +94,50 @@ print(f"\nStations reporting: {len(stations)}")
 for name in sorted(coverage):
     a = sorted(ages[name])
     med = a[len(a) // 2] if a else float("nan")
-    stale = sum(1 for x in a if x > 60)
-    print(f"\n{name}: on {coverage[name]} stations | median age {med:.0f} min | older than 60 min: {stale}")
+    stale = sum(1 for x in a if x > STALE_MIN)
+    print(
+        f"\n{name}: on {coverage[name]} stations | median age {med:.0f} min"
+        f" | older than {STALE_MIN} min: {stale}"
+    )
     if name in values:
         for k, n in values[name].most_common(8):
             print(f"    {n:4d} x {k}")
 
-print("\n" + "=" * 70, "\n3. CONSISTENCY: embedded KELI_1 vs optical OPTISEN_ANTURIN_KELI1\n" + "=" * 70)
+print(
+    "\n" + "=" * 70,
+    "\n3. CONSISTENCY: embedded KELI_1 vs optical OPTISEN_ANTURIN_KELI1\n" + "=" * 70,
+)
 pairs = collections.Counter()
-for sid, sv in per_station.items():
+for sv in per_station.values():
     if "KELI_1" in sv and "OPTISEN_ANTURIN_KELI1" in sv:
-        pairs[(sv["KELI_1"][1] or sv["KELI_1"][0], sv["OPTISEN_ANTURIN_KELI1"][1] or sv["OPTISEN_ANTURIN_KELI1"][0])] += 1
+        pairs[
+            (
+                sv["KELI_1"][1] or sv["KELI_1"][0],
+                sv["OPTISEN_ANTURIN_KELI1"][1] or sv["OPTISEN_ANTURIN_KELI1"][0],
+            )
+        ] += 1
 print(f"Stations with both sensors: {sum(pairs.values())}")
 for (emb, opt), n in pairs.most_common(15):
     print(f"    {n:4d} x embedded={emb!r:30} optical={opt!r}")
 
 print("\n" + "=" * 70, "\n4. CAMERA TO WEATHER-STATION PAIRING\n" + "=" * 70)
-ws = {f["id"]: tuple(reversed(f["geometry"]["coordinates"][:2])) for f in get("/api/weather/v1/stations")["features"]}
+ws = {
+    f["id"]: tuple(reversed(f["geometry"]["coordinates"][:2]))
+    for f in get("/api/weather/v1/stations")["features"]
+}
 cams = get("/api/weathercam/v1/stations")["features"]
 active = [c for c in cams if c["properties"].get("collectionStatus") in (None, "GATHERING")]
 presets = sum(len(c["properties"].get("presets", [])) for c in active)
-print(f"Camera stations: {len(cams)} | collecting: {len(active)} | presets on collecting cameras: {presets}")
+print(
+    f"Camera stations: {len(cams)} | collecting: {len(active)}"
+    f" | presets on collecting cameras: {presets}"
+)
 
 buckets = collections.Counter()
 with_surface = 0
 sample = 0
 for c in active:
-    if sample >= 150:  # detail calls are rate-friendly; 150 gives a solid estimate
+    if sample >= PAIRING_SAMPLE:
         break
     detail = get(f"/api/weathercam/v1/stations/{c['properties']['id']}")["properties"]
     sample += 1
@@ -123,7 +147,7 @@ for c in active:
         continue
     lon, lat = c["geometry"]["coordinates"][:2]
     d = km((lat, lon), ws[wid])
-    b = "< 0.1 km" if d < 0.1 else "< 0.5 km" if d < 0.5 else "< 2 km" if d < 2 else ">= 2 km"
+    b = next((f"< {lim:g} km" for lim in DIST_BUCKETS_KM if d < lim), ">= 2 km")
     buckets[b] += 1
     if any(k.startswith(("KELI", "OPTISEN_ANTURIN_KELI")) for k in per_station.get(wid, {})):
         with_surface += 1
