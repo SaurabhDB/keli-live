@@ -221,3 +221,22 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Keli Live ---
+# macOS
+.DS_Store
+# Images, datasets and model weights belong in object storage, never in git
+*.jpg
+*.jpeg
+*.png
+data/
+*.pt
+*.onnx
+*.safetensors
+# Local camera samples from the feasibility scripts
+test_scripts/
+scripts/helsinki_cams/
+# Private planning material
+docs/*.pdf
+# Claude Code local settings
+.claude/settings.local.json
