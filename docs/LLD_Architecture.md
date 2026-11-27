@@ -185,6 +185,8 @@ Retention: `sensor_reading` and `prediction` are kept; `image` rows and thumbnai
 ```
 thumbs/{yyyy}/{mm}/{dd}/{preset_id}/{HHMM}.jpg
 full/{yyyy}/{mm}/{dd}/{preset_id}/{HHMM}.jpg        # training presets, hourly
+sensors/{yyyy}/{mm}/{dd}/{HHMM}.json.gz             # raw station data, every cycle
+meta/{yyyy}/{mm}/{dd}/{cameras,weather_stations}.json.gz  # daily raw snapshots
 crops/{model_input_size}/{image_id}.jpg             # 384 px lane crops
 models/{model_id}/model.onnx, card.md, metrics.json
 snapshots/{snapshot_id}/manifest.parquet
@@ -196,8 +198,8 @@ snapshots/{snapshot_id}/manifest.parquet
 
 - Base URL `https://tie.digitraffic.fi`, images from `https://weathercam.digitraffic.fi/{presetId}.jpg` (`?thumbnail=true` for 19 KB thumbnails).
 - Headers: `Digitraffic-User: KeliLive/<version>`, `Accept-Encoding: gzip` (not needed for images).
-- Token-bucket limiter: 1,200 image requests per 5 min (20% of the 6,000 limit).
-- Retries: 3 with exponential backoff (1, 4, 16 s) on 5xx and timeouts; no retry on 4xx.
+- Even-spacing limiter: 1,200 requests per 5 min (20% of the 6,000 limit), one slot every 0.25 s shared by all requests (JSON and images). Unlike a token bucket it never bursts after idle time.
+- Retries: 3 with exponential backoff (1, 4, 16 s) on 5xx, 429, timeouts and connection errors; no retry on other 4xx. Each attempt takes a limiter slot.
 - Timeout: 10 s per image, 60 s per JSON call.
 
 ### 5.2 Cycle
@@ -218,7 +220,11 @@ async def run_cycle(now):
 ```
 
 - Camera and preset metadata synced once a day.
-- Full images for training presets only at the top of each hour.
+- **Skipping unchanged images.** Thumbnails carry no `Last-Modified` header (only an `ETag`; checked 24 Nov 2026), so one request to `/api/weathercam/v1/stations/data` per cycle gives every preset's `measuredTime`, which equals the full image's `Last-Modified`. A preset is fetched only when its capture time moved; the key is derived from that time, and an existing key is never downloaded again (restart-safe).
+- **Frozen cameras:** a preset whose latest image is older than 60 min (`KELI_MAX_IMAGE_AGE_S`) is skipped and counted as `frozen` in the cycle log. Seen on 24 Nov 2026: C1457409 still served a 9.9 KB placeholder from 20 Nov.
+- **Training presets** are presets of collecting cameras with any weather station within 0.5 km, computed from coordinates. Their full images are fetched hourly, spread over the six cycles of the hour (at most ⌈n / 6⌉ per cycle) instead of one burst at the top of the hour.
+- **Budget:** ~2,282 thumbnails + ~1/6 of training full images + 2 JSON calls per cycle, within the 2,400 slots of 10 minutes. A cycle that overruns starts the next one immediately.
+- **Failure handling:** a failed image or sensor call is logged and counted; the cycle continues. Current implementation (`keli/ingest/`) writes to local disk through the `ImageStore` interface (`keli/storage/objects.py`); S3 replaces it on the server.
 
 ### 5.3 Validation rules
 
@@ -361,7 +367,12 @@ Read-only; rate limited; same attribution as the API.
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `DIGITRAFFIC_USER` | `KeliLive/0.1` | Identifies the client |
+| `KELI_DATA_DIR` | `data` | Root of the local `ImageStore` |
+| `KELI_RATE_LIMIT_REQUESTS`, `KELI_RATE_LIMIT_WINDOW_S` | `1200`, `300` | Request budget |
+| `KELI_CYCLE_S`, `KELI_FULL_IMAGE_INTERVAL_S` | `600`, `3600` | Cycle and full-image cadence |
+| `KELI_TRAINING_RADIUS_KM` | `0.5` | Station distance for training presets |
+| `KELI_MAX_IMAGE_AGE_S` | `3600` | Older latest image → camera treated as frozen |
+| `KELI_WORKERS` | `8` | Concurrent image downloads (pacing is set by the limiter) |
 | `DATABASE_URL` | `postgresql://keli:...@db/keli` | PostgreSQL |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET` | | Object storage |
 | `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL` | | Route brief and alert drafts |
