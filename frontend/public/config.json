@@ -1,0 +1,161 @@
+{
+  "_comment": "UI text lives in src/i18n (en, fi); this file holds settings and colours only.",
+  "apiBase": "",
+  "imageBase": "https://weathercam.digitraffic.fi",
+  "dataAttribution": "Road data &copy; <a href=\"https://www.fintraffic.fi/en/digitraffic\" target=\"_blank\" rel=\"noreferrer\">Fintraffic / Digitraffic</a>, <a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\" rel=\"noreferrer\">CC BY 4.0</a>; road conditions derived by Keli Live",
+  "refreshS": 60,
+  "historyHours": 24,
+  "trainingRadiusM": 500,
+  "timeline": {
+    "hours": 24,
+    "stepMin": 10,
+    "playMs": 900
+  },
+  "map": {
+    "bounds": [
+      [
+        19.1,
+        59.7
+      ],
+      [
+        31.6,
+        70.1
+      ]
+    ],
+    "minZoom": 3.5,
+    "maxZoom": 16
+  },
+  "geolocation": {
+    "enabled": true,
+    "zoom": 9
+  },
+  "theme": {
+    "mode": "auto",
+    "sunLocation": {
+      "lat": 60.17,
+      "lon": 24.94,
+      "timeZones": [
+        "Europe/Helsinki",
+        "Europe/Mariehamn"
+      ]
+    },
+    "darkBelowSunAltitudeDeg": -6,
+    "fallbackDarkHours": [
+      19,
+      7
+    ],
+    "recheckMin": 5
+  },
+  "basemaps": {
+    "carto-dark": {
+      "kind": "vector",
+      "url": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      "dark": true
+    },
+    "carto-light": {
+      "kind": "vector",
+      "url": "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+      "dark": false
+    },
+    "carto-voyager": {
+      "kind": "vector",
+      "url": "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+      "dark": false
+    },
+    "ofm-liberty": {
+      "kind": "vector",
+      "url": "https://tiles.openfreemap.org/styles/liberty",
+      "dark": false
+    },
+    "ofm-bright": {
+      "kind": "vector",
+      "url": "https://tiles.openfreemap.org/styles/bright",
+      "dark": false
+    },
+    "osm-standard": {
+      "kind": "raster",
+      "tiles": [
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 19,
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
+      "dark": false
+    },
+    "osm-humanitarian": {
+      "kind": "raster",
+      "tiles": [
+        "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+        "https://b.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 19,
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, tiles <a href=\"https://www.hotosm.org/\">HOT</a> / OSM France",
+      "dark": false
+    },
+    "cyclosm": {
+      "kind": "raster",
+      "tiles": [
+        "https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+        "https://b.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png"
+      ],
+      "maxzoom": 19,
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, <a href=\"https://www.cyclosm.org/\">CyclOSM</a> / OSM France",
+      "dark": false
+    }
+  },
+  "classes": {
+    "ice_risk": {
+      "color": "#ff5a6e"
+    },
+    "snow": {
+      "color": "#c3cfe2"
+    },
+    "slush": {
+      "color": "#e0a526"
+    },
+    "wet": {
+      "color": "#4aa3ff"
+    },
+    "dry": {
+      "color": "#3fb68b"
+    }
+  },
+  "hazards": {
+    "high": {
+      "color": "#ff5a6e"
+    },
+    "medium": {
+      "color": "#e0a526"
+    },
+    "low": {
+      "color": "#3fb68b"
+    }
+  },
+  "defaultView": "hazard",
+  "maintenance": {
+    "layerHours": 2,
+    "showByDefault": true,
+    "tasks": {
+      "SALTING": {
+        "color": "#b18cff"
+      },
+      "PLOUGHING_AND_SLUSH_REMOVAL": {
+        "color": "#4fd1c5"
+      },
+      "LINE_SANDING": {
+        "color": "#c9956a"
+      },
+      "SPOT_SANDING": {
+        "color": "#c9956a"
+      },
+      "REMOVAL_OF_BULGE_ICE": {
+        "color": "#7cc4ff"
+      }
+    }
+  },
+  "noDataColor": "#6b7689",
+  "basemap": {
+    "default": "auto",
+    "autoDark": "carto-dark",
+    "autoLight": "carto-light"
+  }
+}
