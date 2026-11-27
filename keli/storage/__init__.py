@@ -1,1 +1,1 @@
-"""Storage: object store for images and raw payloads (database comes later)."""
+"""Storage: object store for images and raw payloads, PostgreSQL schema and importer."""

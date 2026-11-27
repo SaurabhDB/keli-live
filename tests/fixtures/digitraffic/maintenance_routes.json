@@ -1,0 +1,105 @@
+{
+ "type": "FeatureCollection",
+ "dataUpdatedTime": "2026-11-27T09:32:57Z",
+ "features": [
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 208141539,
+    "previousId": 208141423,
+    "sendingTime": "2026-11-27T09:23:00Z",
+    "startTime": "2026-11-27T09:20:13Z",
+    "endTime": "2026-11-27T09:24:00Z",
+    "created": "2026-11-27T09:23:48Z",
+    "tasks": [
+     "LINE_SANDING"
+    ],
+    "direction": 193.0,
+    "domain": "state-roads",
+    "source": "Harja/Väylävirasto"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      23.888815,
+      61.619195,
+      0.0
+     ],
+     [
+      23.888807,
+      61.619211,
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 208141552,
+    "previousId": 208141201,
+    "sendingTime": "2026-11-27T09:20:52Z",
+    "startTime": "2026-11-27T09:20:51Z",
+    "endTime": "2026-11-27T09:23:51Z",
+    "created": "2026-11-27T09:23:48Z",
+    "tasks": [
+     "LINE_SANDING"
+    ],
+    "direction": null,
+    "domain": "state-roads",
+    "source": "Harja/Väylävirasto"
+   },
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      27.609047,
+      62.82022,
+      0.0
+     ],
+     [
+      27.608404,
+      62.820346,
+      0.0
+     ],
+     [
+      27.608182,
+      62.820313,
+      0.0
+     ],
+     [
+      27.607923,
+      62.82014,
+      0.0
+     ]
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "properties": {
+    "id": 208141646,
+    "previousId": 208141290,
+    "sendingTime": "2026-11-27T09:21:38Z",
+    "startTime": "2026-11-27T09:21:39Z",
+    "endTime": "2026-11-27T09:24:39Z",
+    "created": "2026-11-27T09:23:49Z",
+    "tasks": [
+     "SALTING"
+    ],
+    "direction": null,
+    "domain": "state-roads",
+    "source": "Harja/Väylävirasto"
+   },
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.778304,
+     60.725292,
+     0.0
+    ]
+   }
+  }
+ ]
+}

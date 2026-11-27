@@ -19,6 +19,9 @@ JSON_ROUTES = {
     "/api/weathercam/v1/stations/data": "camera_station_data.json",
     "/api/weather/v1/stations": "weather_stations.json",
     "/api/weather/v1/stations/data": "weather_station_data.json",
+    "/api/maintenance/v1/tracking/routes": "maintenance_routes.json",
+    "/api/weather/v2/forecast-sections-simple": "forecast_sections.json",
+    "/api/weather/v2/forecast-sections-simple/forecasts": "road_forecasts.json",
 }
 
 Handler = Callable[[httpx.Request], httpx.Response]

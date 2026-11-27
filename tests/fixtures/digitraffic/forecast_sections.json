@@ -1,0 +1,107 @@
+{
+ "type": "FeatureCollection",
+ "dataUpdatedTime": "2026-10-13T07:07:29Z",
+ "features": [
+  {
+   "type": "Feature",
+   "id": "00001_001_000_0",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      24.944,
+      60.167,
+      0.0
+     ],
+     [
+      24.927,
+      60.182,
+      0.0
+     ],
+     [
+      24.916,
+      60.19,
+      0.0
+     ],
+     [
+      24.913,
+      60.191,
+      0.0
+     ]
+    ]
+   },
+   "properties": {
+    "id": "00001_001_000_0",
+    "description": "Vt 1: Helsinki - Kehä III",
+    "roadSectionNumber": 1,
+    "roadNumber": 1,
+    "roadSectionVersionNumber": 0,
+    "dataUpdatedTime": "2026-10-13T07:07:29Z"
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "00001_006_000_0",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      24.646,
+      60.22,
+      0.0
+     ],
+     [
+      24.366,
+      60.293,
+      0.0
+     ]
+    ]
+   },
+   "properties": {
+    "id": "00001_006_000_0",
+    "description": "Vt 1: Kehä III - Nummela",
+    "roadSectionNumber": 6,
+    "roadNumber": 1,
+    "roadSectionVersionNumber": 0,
+    "dataUpdatedTime": "2026-10-13T07:07:29Z"
+   }
+  },
+  {
+   "type": "Feature",
+   "id": "00001_009_000_0",
+   "geometry": {
+    "type": "LineString",
+    "coordinates": [
+     [
+      24.366,
+      60.293,
+      0.0
+     ],
+     [
+      24.322,
+      60.293,
+      0.0
+     ],
+     [
+      24.281,
+      60.301,
+      0.0
+     ],
+     [
+      24.202,
+      60.302,
+      0.0
+     ]
+    ]
+   },
+   "properties": {
+    "id": "00001_009_000_0",
+    "description": "Vt 1: Nummela - Lohjanharju",
+    "roadSectionNumber": 9,
+    "roadNumber": 1,
+    "roadSectionVersionNumber": 0,
+    "dataUpdatedTime": "2026-10-13T07:07:29Z"
+   }
+  }
+ ]
+}

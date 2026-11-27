@@ -1,0 +1,218 @@
+{
+ "dataUpdatedTime": "2026-11-27T08:45:18Z",
+ "forecastSections": [
+  {
+   "id": "00001_001_000_0",
+   "forecasts": [
+    {
+     "forecastName": "0h",
+     "time": "2026-11-27T09:00:00Z",
+     "type": "OBSERVATION",
+     "daylight": true,
+     "roadTemperature": -3.8,
+     "temperature": -3.3,
+     "windSpeed": 4.6,
+     "windDirection": 349,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "2h",
+     "time": "2026-11-27T11:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -2.3,
+     "temperature": -2.4,
+     "windSpeed": 4.1,
+     "windDirection": 348,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "4h",
+     "time": "2026-11-27T13:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -3.4,
+     "temperature": -2.8,
+     "windSpeed": 3.9,
+     "windDirection": 359,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "6h",
+     "time": "2026-11-27T15:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -5.2,
+     "temperature": -4.0,
+     "windSpeed": 3.4,
+     "windDirection": 356,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 101
+    },
+    {
+     "forecastName": "12h",
+     "time": "2026-11-27T21:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -6.9,
+     "temperature": -5.4,
+     "windSpeed": 3.1,
+     "windDirection": 3,
+     "overallRoadCondition": "POOR_CONDITION",
+     "roadCondition": "FROST",
+     "weatherSymbol": 101
+    }
+   ],
+   "dataUpdatedTime": "2026-11-27T08:45:18Z"
+  },
+  {
+   "id": "00001_006_000_0",
+   "forecasts": [
+    {
+     "forecastName": "0h",
+     "time": "2026-11-27T09:00:00Z",
+     "type": "OBSERVATION",
+     "daylight": true,
+     "roadTemperature": -4.2,
+     "temperature": -3.6,
+     "windSpeed": 3.2,
+     "windDirection": 341,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "2h",
+     "time": "2026-11-27T11:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -2.5,
+     "temperature": -2.6,
+     "windSpeed": 3.3,
+     "windDirection": 338,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "4h",
+     "time": "2026-11-27T13:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -3.9,
+     "temperature": -3.0,
+     "windSpeed": 2.3,
+     "windDirection": 348,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "6h",
+     "time": "2026-11-27T15:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -5.9,
+     "temperature": -4.5,
+     "windSpeed": 2.2,
+     "windDirection": 344,
+     "overallRoadCondition": "POOR_CONDITION",
+     "roadCondition": "FROST",
+     "weatherSymbol": 101
+    },
+    {
+     "forecastName": "12h",
+     "time": "2026-11-27T21:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -7.8,
+     "temperature": -6.1,
+     "windSpeed": 1.5,
+     "windDirection": 356,
+     "overallRoadCondition": "POOR_CONDITION",
+     "roadCondition": "FROST",
+     "weatherSymbol": 101
+    }
+   ],
+   "dataUpdatedTime": "2026-11-27T08:45:18Z"
+  },
+  {
+   "id": "00001_009_000_0",
+   "forecasts": [
+    {
+     "forecastName": "0h",
+     "time": "2026-11-27T09:00:00Z",
+     "type": "OBSERVATION",
+     "daylight": true,
+     "roadTemperature": -4.8,
+     "temperature": -4.2,
+     "windSpeed": 3.2,
+     "windDirection": 341,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "2h",
+     "time": "2026-11-27T11:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -3.0,
+     "temperature": -3.0,
+     "windSpeed": 3.4,
+     "windDirection": 340,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "4h",
+     "time": "2026-11-27T13:00:00Z",
+     "type": "FORECAST",
+     "daylight": true,
+     "roadTemperature": -4.2,
+     "temperature": -3.0,
+     "windSpeed": 2.5,
+     "windDirection": 340,
+     "overallRoadCondition": "NORMAL_CONDITION",
+     "roadCondition": "DRY",
+     "weatherSymbol": 1
+    },
+    {
+     "forecastName": "6h",
+     "time": "2026-11-27T15:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -6.1,
+     "temperature": -4.5,
+     "windSpeed": 2.2,
+     "windDirection": 336,
+     "overallRoadCondition": "POOR_CONDITION",
+     "roadCondition": "FROST",
+     "weatherSymbol": 101
+    },
+    {
+     "forecastName": "12h",
+     "time": "2026-11-27T21:00:00Z",
+     "type": "FORECAST",
+     "daylight": false,
+     "roadTemperature": -8.3,
+     "temperature": -6.0,
+     "windSpeed": 1.2,
+     "windDirection": 2,
+     "overallRoadCondition": "POOR_CONDITION",
+     "roadCondition": "FROST",
+     "weatherSymbol": 101
+    }
+   ],
+   "dataUpdatedTime": "2026-11-27T08:45:18Z"
+  }
+ ]
+}

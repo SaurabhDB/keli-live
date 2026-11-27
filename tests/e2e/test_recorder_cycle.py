@@ -36,6 +36,24 @@ async def test_first_cycle_stores_thumbnails_full_images_and_sensors(
     sensors = json.loads(gzip.decompress((root / "sensors/2026/11/24/0540.json.gz").read_bytes()))
     assert len(sensors["stations"]) == 2
     assert (root / "meta/2026/11/24/cameras.json.gz").is_file()
+    assert report.maintenance_routes == 3
+    assert (root / "maintenance/2026/11/24/0540.json.gz").is_file()
+    assert (root / "forecasts/2026/11/27/0845.json.gz").is_file()  # keyed by issue time
+    assert (root / "meta/2026/11/24/forecast_sections.json.gz").is_file()
+
+
+async def test_unchanged_forecast_is_not_stored_twice(
+    make_client: MakeClient, settings: Settings
+) -> None:
+    store = LocalImageStore(settings.data_dir)
+    state = RecorderState()
+    async with make_client() as client:
+        await run_cycle(client, store, state, settings, NOW)
+        (settings.data_dir / "forecasts/2026/11/27/0845.json.gz").unlink()
+        await run_cycle(client, store, state, settings, NOW.replace(minute=50))
+
+    assert not (settings.data_dir / "forecasts/2026/11/27/0845.json.gz").exists()
+    assert state.maintenance_since == NOW.replace(minute=50)
 
 
 async def test_second_cycle_skips_unchanged_images(
@@ -97,7 +115,7 @@ async def test_api_outage_is_reported_not_raised(
             client, LocalImageStore(settings.data_dir), RecorderState(), settings, NOW
         )
 
-    assert report.failures == 2  # sensors + image planning
+    assert report.failures == 4  # sensors, maintenance, forecasts, image planning
     assert report.thumbs_saved == 0
 
 

@@ -25,6 +25,7 @@ from keli.ingest.cameras import (
     record_image,
     training_presets,
 )
+from keli.ingest.roadinfo import record_forecast_sections, record_forecasts, record_maintenance
 from keli.ingest.sensors import record_sensors
 from keli.storage.objects import ImageStore, metadata_key
 
@@ -40,6 +41,9 @@ class RecorderState:
     metadata_at: datetime | None = None
     last_thumb: dict[str, datetime] = field(default_factory=dict)  # preset -> capture time
     last_full: dict[str, datetime] = field(default_factory=dict)  # preset -> fetch time
+    maintenance_since: datetime | None = None  # start of the last maintenance fetch
+    forecast_issued: datetime | None = None  # issue time of the last stored forecast
+    sections_at: datetime | None = None  # last forecast-section snapshot
 
 
 @dataclass
@@ -55,6 +59,7 @@ class CycleReport:
     frozen: int = 0
     failures: int = 0
     sensor_stations: int = 0
+    maintenance_routes: int = 0
 
     def as_fields(self) -> dict[str, object]:
         """Fields for the structured log line."""
@@ -152,6 +157,7 @@ async def run_cycle(
     except KeliError:
         report.failures += 1
         logger.exception("sensors_failed")
+    await _record_road_info(client, store, state, settings, report)
     stale = state.metadata_at is None or (
         (now - state.metadata_at).total_seconds() >= settings.metadata_refresh_s
     )
@@ -174,6 +180,36 @@ async def run_cycle(
     )
     report.duration_s = round(time.monotonic() - t0, 1)
     return report
+
+
+async def _record_road_info(
+    client: DigitrafficClient,
+    store: ImageStore,
+    state: RecorderState,
+    settings: Settings,
+    report: CycleReport,
+) -> None:
+    """Maintenance tracks, forecasts and (daily) forecast sections; each fails on its own."""
+    now = report.started_at
+    try:
+        report.maintenance_routes = await record_maintenance(
+            client, store, settings, state.maintenance_since, now
+        )
+        state.maintenance_since = now
+    except KeliError:
+        report.failures += 1
+        logger.exception("maintenance_failed")
+    try:
+        state.forecast_issued = await record_forecasts(client, store, state.forecast_issued)
+        due = state.sections_at is None or (
+            (now - state.sections_at).total_seconds() >= settings.metadata_refresh_s
+        )
+        if due:
+            await record_forecast_sections(client, store, now)
+            state.sections_at = now
+    except KeliError:
+        report.failures += 1
+        logger.exception("forecasts_failed")
 
 
 async def _run_jobs(

@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 
@@ -106,3 +107,33 @@ async def test_unexpected_shape_raises_validation_error(make_client: MakeClient)
     async with make_client(lambda _: httpx.Response(200, json={"oops": []})) as client:
         with pytest.raises(DataValidationError, match="unexpected response shape"):
             await client.cameras()
+
+
+async def test_maintenance_routes_sends_time_and_every_task(make_client: MakeClient) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return recorded_api(request)
+
+    since = datetime(2026, 11, 27, 9, 0, 5, tzinfo=UTC)
+    async with make_client(handler) as client:
+        fetched = await client.maintenance_routes(since, ["SALTING", "LINE_SANDING"])
+
+    params = seen[0].url.params
+    assert params["endFrom"] == "2026-11-27T09:00:05Z"
+    assert params.get_list("taskId") == ["SALTING", "LINE_SANDING"]
+    assert [r.tasks for r in fetched.value] == [("LINE_SANDING",), ("LINE_SANDING",), ("SALTING",)]
+    assert json.loads(fetched.value[2].geojson)["type"] == "Point"
+
+
+async def test_road_forecasts_are_stamped_with_the_issue_time(make_client: MakeClient) -> None:
+    async with make_client() as client:
+        fetched = await client.road_forecasts()
+        sections = await client.forecast_sections()
+
+    issued = {f.issued_at for f in fetched.value}
+    assert issued == {datetime(2026, 11, 27, 8, 45, 18, tzinfo=UTC)}
+    assert {f.name for f in fetched.value} == {"0h", "2h", "4h", "6h", "12h"}
+    assert len(sections.value) == 3
+    assert sections.value[0].road_number == 1

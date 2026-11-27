@@ -23,6 +23,14 @@ class ImageStore(Protocol):
         """Whether an object with ``key`` exists."""
         ...
 
+    async def get(self, key: str) -> bytes:
+        """The object stored under ``key``; raises ``StorageError`` if missing."""
+        ...
+
+    async def keys(self, prefix: str) -> list[str]:
+        """All keys under ``prefix`` (a folder such as ``sensors/``), sorted."""
+        ...
+
 
 class LocalImageStore:
     """``ImageStore`` on the local file system, rooted at ``root``."""
@@ -49,6 +57,28 @@ class LocalImageStore:
     async def exists(self, key: str) -> bool:
         """Whether the file for ``key`` exists."""
         return await asyncio.to_thread(self.path_for(key).is_file)
+
+    async def get(self, key: str) -> bytes:
+        """Read the file for ``key``."""
+        try:
+            return await asyncio.to_thread(self.path_for(key).read_bytes)
+        except OSError as exc:
+            raise StorageError(f"cannot read {key}: {exc}") from exc
+
+    async def keys(self, prefix: str) -> list[str]:
+        """Keys of all files under ``prefix``, skipping temp files of unfinished writes."""
+        base = self.path_for(prefix)
+
+        def scan() -> list[str]:
+            if not base.is_dir():
+                return []
+            return sorted(
+                p.relative_to(self._root).as_posix()
+                for p in base.rglob("*")
+                if p.is_file() and not p.name.startswith(".")
+            )
+
+        return await asyncio.to_thread(scan)
 
 
 def _write_atomic(path: Path, data: bytes) -> None:
@@ -80,3 +110,13 @@ def sensors_key(fetched_at: datetime) -> str:
 def metadata_key(kind: str, fetched_at: datetime) -> str:
     """``meta/{yyyy}/{mm}/{dd}/{kind}.json.gz``: daily camera or station list snapshot."""
     return f"meta/{_day(fetched_at)}/{kind}.json.gz"
+
+
+def maintenance_key(fetched_at: datetime) -> str:
+    """``maintenance/{yyyy}/{mm}/{dd}/{HHMM}.json.gz``: winter maintenance tracks of a cycle."""
+    return f"maintenance/{_day(fetched_at)}/{fetched_at:%H%M}.json.gz"
+
+
+def forecasts_key(issued_at: datetime) -> str:
+    """``forecasts/{yyyy}/{mm}/{dd}/{HHMM}.json.gz``: one issue of the road weather forecast."""
+    return f"forecasts/{_day(issued_at)}/{issued_at:%H%M}.json.gz"
