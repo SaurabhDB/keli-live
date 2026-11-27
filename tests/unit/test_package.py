@@ -12,4 +12,4 @@ def test_user_agent_carries_version() -> None:
 
 
 def test_attribution_names_source_and_licence() -> None:
-    assert keli.ATTRIBUTION == "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"
+    assert keli.ATTRIBUTION == "Source: Fintraffic / digitraffic.fi, license CC BY 4.0"

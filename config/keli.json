@@ -1,0 +1,47 @@
+{
+  "data_dir": "data",
+  "digitraffic_base_url": "https://tie.digitraffic.fi",
+  "image_base_url": "https://weathercam.digitraffic.fi",
+
+  "rate_limit_requests": 1200,
+  "rate_limit_window_s": 300,
+  "cycle_s": 600,
+  "full_image_interval_s": 3600,
+  "metadata_refresh_s": 86400,
+  "training_radius_km": 0.5,
+  "max_image_age_s": 3600,
+  "workers": 8,
+  "maintenance_tasks": ["SALTING", "LINE_SANDING", "SPOT_SANDING", "PLOUGHING_AND_SLUSH_REMOVAL", "REMOVAL_OF_BULGE_ICE"],
+  "maintenance_overlap_s": 120,
+  "maintenance_initial_lookback_s": 3600,
+  "maintenance_radius_m": 150,
+  "maintenance_window_h": 12,
+  "maintenance_layer_max_h": 6,
+  "forecast_radius_m": 3000,
+  "image_timeout_s": 10,
+  "json_timeout_s": 60,
+
+  "imported_sensors": [
+    "KELI_1", "KELI_2", "TIE_1", "TIE_2", "VAROITUS_1", "VAROITUS_2",
+    "OPTISEN_ANTURIN_KELI1", "OPTISEN_ANTURIN_KELI2", "ILMA", "KITKA1_LUKU",
+    "TIE_1_DERIVAATTA", "KUURAPISTE_ERO_TIE", "SADE_INTENSITEETTI"
+  ],
+  "label_max_age_s": 3600,
+  "hazard": {
+    "grip_high_below": 0.30,
+    "grip_medium_below": 0.45,
+    "freeze_horizon_h": 1.0,
+    "frost_margin_c": 1.0,
+    "precip_min_mm_h": 0.1,
+    "precip_max_mm_h": 100.0
+  },
+
+  "web_dist_dir": "frontend/dist",
+  "api_cors_origins": ["http://localhost:5173", "http://127.0.0.1:5173"],
+  "api_max_history_hours": 72,
+  "db_pool_max": 5,
+  "db_connect_timeout_s": 5,
+  "live_fallback": true,
+  "live_cache_s": 60,
+  "db_retry_s": 30
+}

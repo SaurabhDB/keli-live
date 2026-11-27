@@ -240,3 +240,10 @@ scripts/helsinki_cams/
 docs/*.pdf
 # Claude Code local settings
 .claude/settings.local.json
+
+# The Python template ignores every lib/ folder; the web app's src/lib is source code.
+!frontend/src/lib/
+# Vehicle models (CC0, Kenney Car Kit) are downloaded, not committed: python scripts/fetch_vehicle_models.py
+frontend/public/models/
+# Local logs
+*.log
