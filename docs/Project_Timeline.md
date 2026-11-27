@@ -65,6 +65,12 @@ gantt
 
 ## Phases
 
+### Status on 27 Nov 2026
+
+- **Done (ahead of plan):** recorder (images, sensors, winter maintenance, road weather forecasts) ran 23–27 Nov on the Mac; PostGIS database + importer; API with live-data fallback; rule-based driving hazard; React map (EN/FI, time travel, maintenance layer, forecasts); "Drive" game; one server for app + API.
+- **Recorder paused on 27 Nov** (Mac disk nearly full). Before restarting: move `data/` to the external SSD (`KELI_DATA_DIR`), or move the recorder to a server.
+- **Open:** database/API tests (coverage gate), commits and merge to `dev`, hosting (Render or Hetzner), data retention, per-client rate limits.
+
 ### Phase 0: Recorder (23–29 Nov)
 
 | Task | Done when |

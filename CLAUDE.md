@@ -22,16 +22,18 @@ If code and docs disagree, ask which is right, then update the other in the same
 
 ## Current phase
 
-Phase 0 → 1 (Nov–Dec 2026). Priority order:
+Phase 0 → 1 (Nov–Dec 2026). Built so far: recorder (images, sensors, winter maintenance,
+road weather forecasts), PostGIS schema + importer, API with live-data fallback, rule-based
+driving hazard, React map (EN/FI) and the "Drive" game. Priority order now:
 1. **Recorder running 24/7** (`keli/ingest/`). Digitraffic deletes images after 24 h; every lost day is lost training data.
-2. Database schema and validation.
-3. API + map on real, sensor-based data.
+2. Tests for the database and API (coverage gate 85%), then commit in reviewable pieces.
+3. Hosting (Render planned) and data retention.
 
 Do not start agents or model work before the recorder is stable unless asked.
 
 ## Stack
 
-Python 3.12 · FastAPI · PostgreSQL 16 + PostGIS · S3-compatible object storage (Hetzner) · httpx (async) · SQLAlchemy 2 / asyncpg · pydantic v2 + pydantic-settings · PyTorch (MPS on Apple Silicon) · timm · open_clip · ONNX Runtime · Label Studio · cleanlab · LangGraph · MCP Python SDK · Ollama · Leaflet + OpenStreetMap (vanilla JS, no build step) · Docker Compose · GitHub Actions · ruff · pytest.
+Python 3.12 · FastAPI · PostgreSQL 18 + PostGIS 3.7 · S3-compatible object storage (Hetzner) · httpx (async) · asyncpg (plain SQL) · pydantic v2 + pydantic-settings · PyTorch (MPS on Apple Silicon) · timm · open_clip · ONNX Runtime · Label Studio · cleanlab · LangGraph · MCP Python SDK · Ollama · React 19 + TypeScript + Vite + MapLibre GL (OpenStreetMap-based basemaps) · three.js (game only, lazy-loaded) · Docker Compose · GitHub Actions · ruff · pytest.
 
 Development machine: MacBook M1, 16 GB RAM, 256 GB disk. Keep memory and disk use modest; large data goes to an external SSD or object storage.
 
@@ -40,15 +42,17 @@ Development machine: MacBook M1, 16 GB RAM, 256 GB disk. Keep memory and disk us
 ```
 keli/digitraffic/   API client, typed models, rate limiter
 keli/ingest/        scheduler, cameras, sensors, announcements, validate
-keli/storage/       schema.sql, db, objects (S3)
+keli/storage/       migrations/*.sql, db, migrate, importer, objects (ImageStore)
 keli/vision/        lane crops, image quality
-keli/labels/        voters (sensor, zeroshot, rules, vlm), aggregate, review
+keli/labels/        sensor (classes), hazard (driving hazard), later: voters, aggregate, review
 keli/models/        dataset, train, evaluate, fusion, export_onnx, registry, infer
 keli/alerts/        deterministic mismatch rules
 keli/agents/        LangGraph agents + shared tools
-keli/api/           FastAPI app and routes
+keli/api/           FastAPI app, routes, repository (SQL), live fallback, provider, web (serves frontend/dist)
 keli/mcp_server/    MCP server (read-only tools + route brief)
-web/                static map (index.html, app.js, live.js, style.css)
+frontend/           React web app (map, camera panel, Drive game); built to frontend/dist
+config/keli.json    all non-secret settings (secrets only in .env)
+web/                original vanilla-JS prototype, frozen (do not edit)
 scripts/            one-off checks (check_digitraffic.py, inspect_sensors.py)
 tests/              unit, contract, e2e (fixtures in tests/fixtures/)
 ```
@@ -60,15 +64,18 @@ Put new code where the LLD says. Don't create new top-level folders without aski
 ```bash
 source .venv/bin/activate
 pip install -e ".[dev,ml]"
-docker compose up -d db
+brew services start postgresql@18      # local DB on port 5433 (see Technical_Documentation)
 python -m keli.storage.migrate
-python -m keli.ingest --once            # one cycle
-python -m keli.ingest                   # continuous
-uvicorn keli.api.main:app --reload
-cd web && python3 -m http.server 5173
-ruff check . && ruff format .
+python -m keli.ingest --once            # one recorder cycle
+caffeinate -is python -m keli.ingest    # continuous (keeps the Mac awake)
+python -m keli.storage.importer --watch # raw files -> PostgreSQL every cycle (--rescan after adding sensors)
+cd frontend && npm install && npm run build && cd ..
+uvicorn keli.api.main:app               # ONE server: API (/v1) + web app on http://localhost:8000
+cd frontend && npm run dev              # development only: hot reload on :5173, proxies /v1 to :8000
+ruff check . && ruff format . && mypy
 pytest -q                               # unit + e2e (offline, fixtures)
 pytest -q -m contract                   # hits live Digitraffic; run sparingly
+cd frontend && npx oxlint src && npm test   # frontend lint + game logic tests
 ```
 
 ## Non-negotiable rules
@@ -78,7 +85,7 @@ pytest -q -m contract                   # hits live Digitraffic; run sparingly
 - Always send header `Digitraffic-User: KeliLive/<version>`; gzip for JSON.
 - **Rate limit:** at most 1,200 image requests per 5 min (Digitraffic limit is 6,000). Spread requests evenly over the 10-minute cycle; never burst.
 - Retries: 3, exponential backoff, only on 5xx/timeouts.
-- Every API response, page and dataset carries: `Source: Fintraffic / digitraffic.fi, license CC 4.0 BY`.
+- Every API response, page and dataset carries: `Source: Fintraffic / digitraffic.fi, license CC BY 4.0`.
 - Tests must not hit the live API except those marked `@pytest.mark.contract`. Use recorded fixtures.
 
 ### Sensor mapping (confirmed 23 Nov 2026; don't change without new evidence)
@@ -95,7 +102,8 @@ pytest -q -m contract                   # hits live Digitraffic; run sparingly
 - **Deterministic core, agents at the edges.** Road conditions come from sensors or the model, never from an LLM. LLMs only summarise, explain or draft. Agent output is validated against structured evidence; alerts need human approval before publishing.
 - Keep the Digitraffic client the only place that knows Digitraffic's field names.
 - Async I/O for ingestion; no blocking calls in the event loop.
-- Configuration only through environment variables (`keli/config.py`); never hard-code secrets or URLs of paid services.
+- Configuration through `config/keli.json` (non-secret settings) and `.env` / environment variables (secrets such as `KELI_DATABASE_URL`; env overrides JSON), loaded by `keli/config.py`. Frontend settings live in `frontend/public/config.json`. Never hard-code secrets or URLs of paid services.
+- The API falls back to Digitraffic's live data when PostgreSQL is unreachable (`data_source: "digitraffic_live"`); history, maintenance and forecasts are database-only.
 
 ### ML honesty
 - Split data **by camera**, never by image. No camera in two splits.
@@ -114,7 +122,7 @@ pytest -q -m contract                   # hits live Digitraffic; run sparingly
 - Logging: structured (JSON) via the standard `logging` module; no `print` in library code.
 - Times are UTC `datetime` with tzinfo; store as `timestamptz`.
 - Coordinates: GeoJSON order `[lon, lat]` from Digitraffic; convert explicitly, name variables `lat`, `lon`.
-- Frontend: vanilla JS, no framework or bundler; keep it runnable with `python3 -m http.server`.
+- Frontend: React + TypeScript (strict) + Vite in `frontend/`; all UI text in `src/i18n/en.ts` and `fi.ts` (Finnish must have every key). Heavy features (the game, three.js, 3D models) are lazy-loaded so the landing page never pays for them. `web/` is the frozen prototype.
 - Dependencies: ask before adding a new one; prefer the standard library and the stack above.
 
 ## How to work

@@ -16,7 +16,8 @@ Keli Live ingests open Finnish road data, labels camera images automatically, tr
 |---|---|
 | macOS (Apple Silicon) or Linux | Development on a MacBook M1, 16 GB |
 | Python | 3.12 |
-| Docker Desktop or Colima | For PostgreSQL + PostGIS |
+| PostgreSQL 18 + PostGIS 3.7 | `brew install postgresql@18 postgis` (Homebrew's PostGIS supports 18/19, not 16); Docker for the server |
+| Node.js | 22+ for the web app (`frontend/`) |
 | Git, GitHub account | |
 | Ollama | Optional, for the local vision-language voter |
 | Free disk | ~60 GB for a local training subset; use an external SSD for more |
@@ -24,19 +25,44 @@ Keli Live ingests open Finnish road data, labels camera images automatically, tr
 ## 3. Local setup
 
 ```bash
-git clone https://github.com/<your-user>/keli-live.git && cd keli-live
+git clone https://github.com/SaurabhDB/keli-live.git && cd keli-live
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev,ml]"
-cp .env.example .env
-docker compose up -d db
-python -m keli.storage.migrate
+cp .env.example .env                     # set KELI_DATABASE_URL (secrets only)
+brew services start postgresql@18        # see "Local database" below
+python -m keli.storage.migrate           # applies keli/storage/migrations/*.sql
 python scripts/check_digitraffic.py      # feasibility check
 python -m keli.ingest --once             # one full cycle
-uvicorn keli.api.main:app --reload
-cd web && python3 -m http.server 5173
+python -m keli.storage.importer          # raw files -> database
+(cd frontend && npm install && npm run build)
+uvicorn keli.api.main:app                # web app + API on http://localhost:8000
 ```
 
-Open http://localhost:5173. OpenStreetMap tiles need the page served over HTTP, not opened as a file.
+Open **http://localhost:8000**: one process serves both the API (`/v1`, `/docs`) and the built web app. For frontend development with hot reload, also run `cd frontend && npm run dev` and open http://localhost:5173; Vite forwards `/v1` to port 8000. Settings live in `config/keli.json` (any of them can be overridden with `KELI_<NAME>` in `.env`); the web app's settings in `frontend/public/config.json`.
+
+### 3.1 Local database
+
+The Homebrew PostgreSQL 18 runs on **port 5433**, because another local PostgreSQL may already use 5432:
+
+```bash
+brew install postgresql@18 postgis
+sed -i '' 's/^#\{0,1\}port = .*/port = 5433/' /opt/homebrew/var/postgresql@18/postgresql.conf
+brew services start postgresql@18
+psql -p 5433 -d postgres -c "CREATE ROLE keli LOGIN PASSWORD '<secret>'"
+createdb -p 5433 -O keli keli && psql -p 5433 -d keli -c "CREATE EXTENSION postgis"
+# .env: KELI_DATABASE_URL=postgresql://keli:<secret>@localhost:5433/keli
+```
+
+### 3.2 Running the recorder and importer
+
+| Task | Command |
+|---|---|
+| Record continuously | `nohup caffeinate -is python -m keli.ingest >> recorder.log 2>&1 &` (keeps the Mac awake while plugged in; closing the lid still sleeps unless `sudo pmset -a disablesleep 1`) |
+| Stop recording | `pkill -f "python -m keli.ingest"` |
+| Load new files into the database | `python -m keli.storage.importer --watch` (every cycle) |
+| After adding a sensor to `imported_sensors` | `python -m keli.storage.importer --rescan` |
+| Data location | `data/` by default; set `KELI_DATA_DIR` to an external SSD (about 11 GB per day) |
+| Health | `curl localhost:8000/v1/health`; each cycle logs one `cycle_done` JSON line in `recorder.log` |
 
 ## 4. Data sources
 
@@ -51,7 +77,7 @@ Open http://localhost:5173. OpenStreetMap tiles need the page served over HTTP, 
 | Sensor metadata | `GET /api/weather/v1/sensors` | Metadata | CC BY 4.0 |
 | Traffic announcements | Traffic message API, type `TRAFFIC_ANNOUNCEMENT` | Event-driven; also MQTT | CC BY 4.0 |
 
-Rules: send `Digitraffic-User`; use gzip for JSON; stay under 6,000 image requests per 5 minutes per IP (Keli Live uses at most 1,200). Attribution: **Source: Fintraffic / digitraffic.fi, license CC 4.0 BY.**
+Rules: send `Digitraffic-User`; use gzip for JSON; stay under 6,000 image requests per 5 minutes per IP (Keli Live uses at most 1,200). Attribution: **Source: Fintraffic / digitraffic.fi, license CC BY 4.0.**
 
 ### 4.1 Measured volumes (23 Nov 2026)
 
@@ -132,11 +158,12 @@ Expected time: DINOv2 probe minutes; ConvNeXt-Tiny on ~20,000 crops about 1–3 
 | Server | Hetzner Cloud, 4 vCPU / 8 GB, Ubuntu 24.04, EU region |
 | Install | Docker + Compose; clone repo; copy `.env` |
 | Start | `docker compose -f docker-compose.prod.yml up -d` |
+| Web app | Built into `frontend/dist` and served by the API process (no separate web server) |
 | HTTPS | Caddy reverse proxy with automatic certificates |
 | Model | Upload ONNX to object storage; set `MODEL_ID`; restart `inference` |
 | Deploy | GitHub Actions builds images and deploys over SSH on tag `v*` |
 
-Services: `db`, `ingest`, `inference`, `api`, `web` (static, served by Caddy), `agents`, `mcp`.
+Services: `db`, `ingest` (recorder + importer), `api` (also serves the web app), later `inference`, `agents`, `mcp`. A free-tier option (Render for the API in live-fallback mode) is being evaluated.
 
 ## 10. Operations
 
@@ -150,8 +177,10 @@ Services: `db`, `ingest`, `inference`, `api`, `web` (static, served by Caddy), `
 
 | Symptom | Likely cause | Action |
 |---|---|---|
-| Data age > 30 min | Ingest stopped or Digitraffic down | `docker compose logs ingest`; check status.digitraffic.fi; restart `ingest` |
-| Many 429 responses | Rate limit | Lower `IMAGE_REQ_PER_5MIN`; check requests are spread over the cycle |
+| Data age > 30 min | Ingest stopped, Mac asleep or Digitraffic down | `tail recorder.log`; check status.digitraffic.fi; restart the recorder and importer |
+| `/v1/health` says `degraded` | PostgreSQL unreachable; API serves Digitraffic live data | `brew services restart postgresql@18`; the API reconnects within `db_retry_s` |
+| Many 429 responses | Rate limit | Lower `KELI_RATE_LIMIT_REQUESTS`; check requests are spread over the cycle |
+| Maintenance fetch HTTP 400 | Window ≥ 24 h | Keep `maintenance_initial_lookback_s` ≤ 82800 |
 | Many identical images from one camera | Camera frozen | Automatic flag; excluded from the map until it changes |
 | Contract test failed | API field changed | Update `keli/digitraffic/models.py`; release a fix |
 | All predictions "unusable" at night | Expected | Map relies on sensors at night |

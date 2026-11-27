@@ -11,9 +11,10 @@
 ```
 keli-live/
 ├── README.md, SKILLS.md, LICENSE, pyproject.toml, .env.example, docker-compose.yml
+├── config/keli.json           # all non-secret settings (secrets only in .env)
 ├── docs/                      # HLD, LLD, technical docs, timeline, images
 ├── keli/
-│   ├── config.py              # settings from environment (pydantic-settings)
+│   ├── config.py              # settings: config/keli.json < .env < environment
 │   ├── digitraffic/           # API client, typed responses, rate limiter
 │   │   ├── client.py
 │   │   └── models.py
@@ -21,17 +22,22 @@ keli-live/
 │   │   ├── scheduler.py       # 10-minute cycle, spreads requests evenly
 │   │   ├── cameras.py         # camera + preset sync, image fetch
 │   │   ├── sensors.py         # station data fetch
-│   │   ├── announcements.py   # traffic announcements
-│   │   └── validate.py        # faults, staleness, plausibility
+│   │   ├── roadinfo.py        # winter-maintenance tracks, road weather forecasts
+│   │   ├── announcements.py   # traffic announcements (v1.1)
+│   │   └── validate.py        # plausibility (temperature, friction, precipitation)
 │   ├── storage/
-│   │   ├── schema.sql
-│   │   ├── db.py              # SQLAlchemy / asyncpg
-│   │   └── objects.py         # S3 client, key layout
+│   │   ├── migrations/        # 001_initial.sql, 002_road_info.sql
+│   │   ├── db.py, migrate.py  # asyncpg pool, migration runner
+│   │   ├── importer.py        # raw files -> PostgreSQL (idempotent, --watch, --rescan)
+│   │   ├── import_roadinfo.py # maintenance + forecasts import
+│   │   └── objects.py         # ImageStore (local disk now, S3 later), key layout
 │   ├── vision/
 │   │   ├── lanes.py           # per-preset lane polygon, crop
 │   │   └── quality.py         # night, blur, blocked-lens checks
 │   ├── labels/
-│   │   ├── voters/{sensor,zeroshot,rules,vlm}.py
+│   │   ├── sensor.py          # KELI/VAROITUS -> class (section 2.2)
+│   │   ├── hazard.py          # driving hazard level + reasons (section 2.3)
+│   │   ├── voters/{sensor,zeroshot,rules,vlm}.py   # later
 │   │   ├── aggregate.py       # agreement rules, temporal smoothing
 │   │   └── review.py          # Label Studio export/import
 │   ├── models/
@@ -43,10 +49,17 @@ keli-live/
 │   │   ├── route_brief.py, mismatch.py, labelling.py, ops.py
 │   │   └── tools.py           # tools shared with the MCP server
 │   ├── api/
-│   │   ├── main.py
-│   │   └── routes/{cameras,conditions,alerts,routes,health}.py
+│   │   ├── main.py            # app factory, gzip, CORS, mounts the web app
+│   │   ├── routes.py          # /v1 endpoints (section 11)
+│   │   ├── repository.py      # Repository interface + PostgreSQL implementation
+│   │   ├── live.py            # same interface from Digitraffic (database down)
+│   │   ├── provider.py        # database first, live fallback, retry
+│   │   ├── conditions.py      # conditions, history series, streaks (pure)
+│   │   ├── schemas.py         # response models
+│   │   └── web.py             # serves frontend/dist (one server, one port)
 │   └── mcp_server/server.py
-├── web/                       # index.html, app.js, live.js, style.css
+├── frontend/                  # React + TypeScript + Vite web app (section 17)
+├── web/                       # original vanilla-JS prototype, frozen
 ├── scripts/                   # check_digitraffic.py, inspect_sensors.py, helsinki_cams.py
 └── tests/                     # unit, contract, end-to-end
 ```
@@ -78,6 +91,23 @@ keli-live/
 **Salt exception.** The temperature override does not apply to the salty codes 4 (wet and salty) and 8 (probably moist and salty): salt lowers the freezing point, so a salted road at −3 °C is wet, not icy. Without this exception every salted main road would show false ice risk all winter. A salty reading becomes `ice_risk` only through `VAROITUS_n` ∈ {2, 3}, or through codes 5/7 themselves.
 
 Use lanes 1 and 2 only. Ignore `PINTASIGNAALI_n`. Optical codes are inferred from the cross-tab and must be confirmed on 20 images.
+
+### 2.3 Driving hazard (`keli/labels/hazard.py`)
+
+A level (`high`, `medium`, `low`) and its reasons from the same fresh readings, deterministic and testable; it rates slipperiness now or within the hour, not accident risk. Sensor meanings were checked against recorded data on 27 Nov 2026: `KITKA1_LUKU` grip 0–0.82 (0.82 = sensor maximum), `TIE_1_DERIVAATTA` road-temperature trend °C/h, `KUURAPISTE_ERO_TIE` road temperature − frost point (≤ 0 = frost depositing), `SADE_INTENSITEETTI` mm/h.
+
+| Level | Rule (thresholds in `config/keli.json` → `hazard`) | Reason code |
+|---|---|---|
+| High | class `ice_risk` | `surface_ice` |
+| High | grip < 0.30 | `grip_very_low` |
+| High | road ≤ 0 °C and frost-point difference ≤ 0 | `frost_forming` |
+| High | road ≤ 0 °C and precipitation 0.1–100 mm/h | `precip_on_frozen_road` |
+| Medium | class `snow` / `slush` | `surface_snow` / `surface_slush` |
+| Medium | grip < 0.45 | `grip_reduced` |
+| Medium | road ≤ 0 °C, cooling, frost-point difference ≤ 1 °C | `frost_soon` |
+| Medium | class `wet`, road > 0 °C, reaches 0 °C within `freeze_horizon_h` at the current trend | `freezing_soon` |
+
+The API returns English reasons and the codes with their values (`{code: "grip_reduced", params: {grip: 0.4}}`) so the web app can translate them.
 
 ## 3. Database schema
 
@@ -178,6 +208,20 @@ CREATE INDEX ON image (captured_at);
 CREATE INDEX ON camera USING gist (geom);
 ```
 
+**As implemented** (PostgreSQL 18 + PostGIS 3.7, `keli/storage/migrations/`): `001_initial.sql` is the schema above plus `weather_station.collection_status`, a `preset_camera` index and `import_log (key, rows, imported_at)` so each raw file is loaded once. `announcement` and `alert` come with v1.1. `002_road_info.sql` adds:
+
+```sql
+CREATE TABLE maintenance_route (id bigint PRIMARY KEY, start_time timestamptz, end_time timestamptz,
+  tasks text[], geom geography(Geometry, 4326));          -- winter tasks only, GiST + end_time indexes
+CREATE TABLE forecast_section (id text PRIMARY KEY, description text, road_number int,
+  geom geography(Geometry, 4326), updated_at timestamptz);
+CREATE TABLE road_forecast (section_id text REFERENCES forecast_section, issued_at timestamptz,
+  name text, valid_at timestamptz, kind text, road_temp_c real, air_temp_c real,
+  road_condition text, overall_condition text, PRIMARY KEY (section_id, issued_at, name));
+```
+
+Only the sensors in `imported_sensors` are loaded (~1 GB/month); `camera.weather_station` and `station_dist_m` come from a PostGIS nearest-neighbour query; `preset.is_training` = station within `training_radius_km`.
+
 Retention: `sensor_reading` and `prediction` are kept; `image` rows and thumbnails for one season; `full_key` objects deleted after the training snapshot is frozen.
 
 ## 4. Object storage layout
@@ -186,7 +230,9 @@ Retention: `sensor_reading` and `prediction` are kept; `image` rows and thumbnai
 thumbs/{yyyy}/{mm}/{dd}/{preset_id}/{HHMM}.jpg
 full/{yyyy}/{mm}/{dd}/{preset_id}/{HHMM}.jpg        # training presets, hourly
 sensors/{yyyy}/{mm}/{dd}/{HHMM}.json.gz             # raw station data, every cycle
-meta/{yyyy}/{mm}/{dd}/{cameras,weather_stations}.json.gz  # daily raw snapshots
+maintenance/{yyyy}/{mm}/{dd}/{HHMM}.json.gz         # winter-maintenance tracks finished since last cycle
+forecasts/{yyyy}/{mm}/{dd}/{HHMM}.json.gz           # one file per forecast issue (HHMM = issue time)
+meta/{yyyy}/{mm}/{dd}/{cameras,weather_stations,forecast_sections}.json.gz  # daily raw snapshots
 crops/{model_input_size}/{image_id}.jpg             # 384 px lane crops
 models/{model_id}/model.onnx, card.md, metrics.json
 snapshots/{snapshot_id}/manifest.parquet
@@ -224,7 +270,9 @@ async def run_cycle(now):
 - **Frozen cameras:** a preset whose latest image is older than 60 min (`KELI_MAX_IMAGE_AGE_S`) is skipped and counted as `frozen` in the cycle log. Seen on 24 Nov 2026: C1457409 still served a 9.9 KB placeholder from 20 Nov.
 - **Training presets** are presets of collecting cameras with any weather station within 0.5 km, computed from coordinates. Their full images are fetched hourly, spread over the six cycles of the hour (at most ⌈n / 6⌉ per cycle) instead of one burst at the top of the hour.
 - **Budget:** ~2,282 thumbnails + ~1/6 of training full images + 2 JSON calls per cycle, within the 2,400 slots of 10 minutes. A cycle that overruns starts the next one immediately.
-- **Failure handling:** a failed image or sensor call is logged and counted; the cycle continues. Current implementation (`keli/ingest/`) writes to local disk through the `ImageStore` interface (`keli/storage/objects.py`); S3 replaces it on the server.
+- **Winter maintenance:** each cycle fetches `/api/maintenance/v1/tracking/routes` with `endFrom` = previous fetch − 2 min and `taskId` for the winter tasks in `maintenance_tasks` (salting, sanding, ploughing, bulge-ice removal; ~22 KB per cycle). After a restart it looks back `maintenance_initial_lookback_s` (≤ 23 h; Digitraffic rejects 24 h).
+- **Road weather forecasts:** `/api/weather/v2/forecast-sections-simple/forecasts` every cycle, stored only when `dataUpdatedTime` changes (about hourly); section geometry daily.
+- **Failure handling:** a failed image, sensor, maintenance or forecast call is logged and counted; the cycle continues. Current implementation (`keli/ingest/`) writes to local disk through the `ImageStore` interface (`keli/storage/objects.py`); S3 replaces it on the server.
 
 ### 5.3 Validation rules
 
@@ -234,6 +282,7 @@ async def run_cycle(now):
 | Reading older than 60 min | Drop as label |
 | `TIE_n` outside −45…+60 °C | Drop reading |
 | Friction outside 0…1 | Drop reading |
+| Precipitation outside 0…100 mm/h | Drop reading (204.7 mm/h seen live: faulty gauge) |
 | Image identical to the previous one (hash) | Skip; flag camera if 6 cycles in a row |
 | Mean brightness < threshold and sun below horizon | `unusable: night` |
 | Laplacian variance < threshold | `unusable: blur or fog` |
@@ -315,32 +364,36 @@ LangGraph graph: `collect_evidence → draft_text → validate → await_approva
 
 ## 11. API (FastAPI)
 
+Implemented (`keli/api/routes.py`); one camera is one map point, labelled only when its nearest station is within `training_radius_km`:
+
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/v1/health` | Status, last cycle time, data age |
-| GET | `/v1/cameras?bbox=` | Cameras with presets and station distance |
-| GET | `/v1/conditions?bbox=&at=` | Latest (or at a time) class, source, confidence per preset |
-| GET | `/v1/presets/{id}/history?hours=24` | Time series of class and sensor values |
-| GET | `/v1/alerts?status=approved` | Alerts |
-| POST | `/v1/alerts/{id}/approve` | Approve (auth required) |
-| POST | `/v1/route-brief` | `{from, to}` or polyline → brief text + evidence |
-| GET | `/v1/stats` | Coverage, counts per class |
+| GET | `/v1/health` | `ok` / `stale` (newest reading > 3 cycles) / `degraded` (live fallback), newest reading time |
+| GET | `/v1/conditions?bbox=&at=` | Per camera and per station: class, source, road/air temperature, grip, hazard + reasons, last winter treatment; `at` = time travel |
+| GET | `/v1/cameras/{id}/history?hours=24&at=` | 10-minute series of class, hazard and readings, plus `surface_streak` / `hazard_streak` (how long the current value has held) |
+| GET | `/v1/cameras/{id}/outlook?at=` | Winter maintenance near the camera (last `maintenance_window_h`) and the forecast of the nearest forecast section |
+| GET | `/v1/maintenance?hours=2&at=` | Recent winter-maintenance tracks as GeoJSON (map layer, simplified to ~50 m) |
+| GET | `/v1/stats` | Camera counts per class and hazard level |
 
-Every response includes `"attribution": "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"`.
+Planned: `/v1/alerts` (+ approve), `/v1/route-brief` (section 12).
 
-Example:
+Every response carries `"attribution": "Source: Fintraffic / digitraffic.fi, license CC BY 4.0"` and `"data_source"`: `database`, or `digitraffic_live` when PostgreSQL is unreachable. Then `keli/api/provider.py` serves the same interface from Digitraffic's latest data (cached `live_cache_s`, database retried every `db_retry_s`); history, maintenance and forecasts are empty in that mode. Responses are gzipped. The same process serves the built web app (`keli/api/web.py`, mounted after `/v1`): hashed assets cached a year, `index.html` and `config.json` revalidated, unknown paths fall back to `index.html`.
+
+Example (one camera, trimmed):
 
 ```json
 GET /v1/conditions?bbox=24.7,60.1,25.2,60.3
 {
-  "generated_at": "2026-12-15T07:40:00Z",
-  "items": [
-    {"preset_id": "C0167401", "camera": "Helsinki, Ruoholahti", "lat": 60.163, "lon": 24.913,
-     "class": "ice_risk", "source": "sensor", "confidence": 0.95,
-     "model_class": "wet", "road_temp_c": -0.6, "image_at": "2026-12-15T07:34:12Z",
-     "thumb_url": "https://weathercam.digitraffic.fi/C0167401.jpg?thumbnail=true"}
-  ],
-  "attribution": "Source: Fintraffic / digitraffic.fi, license CC 4.0 BY"
+  "attribution": "Source: Fintraffic / digitraffic.fi, license CC BY 4.0",
+  "data_source": "database",
+  "generated_at": "2026-11-27T08:06:42Z", "at": "2026-11-27T08:06:42Z",
+  "cameras": [{"camera_id": "C01521", "name": "st101_Turvesuontie", "lat": 60.1997, "lon": 24.8093,
+    "road_class": "ice_risk", "source": "sensor", "road_temp_c": -6.0, "air_temp_c": -4.0, "friction": 0.82,
+    "hazard": "high", "hazard_reasons": ["Frost forming on the road now"],
+    "hazard_codes": [{"code": "frost_forming", "params": {}}],
+    "station_id": 1055, "station_dist_m": 66, "treated_at": "2026-11-27T06:35:20Z", "treatment": ["SALTING"],
+    "presets": ["C0152101"], "thumb_url": "https://weathercam.digitraffic.fi/C0152101.jpg?thumbnail=true"}],
+  "stations": [ ... ]
 }
 ```
 
@@ -365,20 +418,14 @@ Read-only; rate limited; same attribution as the API.
 
 ## 14. Configuration
 
-| Variable | Example | Purpose |
-|---|---|---|
-| `KELI_DATA_DIR` | `data` | Root of the local `ImageStore` |
-| `KELI_RATE_LIMIT_REQUESTS`, `KELI_RATE_LIMIT_WINDOW_S` | `1200`, `300` | Request budget |
-| `KELI_CYCLE_S`, `KELI_FULL_IMAGE_INTERVAL_S` | `600`, `3600` | Cycle and full-image cadence |
-| `KELI_TRAINING_RADIUS_KM` | `0.5` | Station distance for training presets |
-| `KELI_MAX_IMAGE_AGE_S` | `3600` | Older latest image → camera treated as frozen |
-| `KELI_WORKERS` | `8` | Concurrent image downloads (pacing is set by the limiter) |
-| `DATABASE_URL` | `postgresql://keli:...@db/keli` | PostgreSQL |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET` | | Object storage |
-| `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL` | | Route brief and alert drafts |
-| `OLLAMA_URL` | `http://localhost:11434` | Local VLM for labelling |
-| `MODEL_ID` | `convnext-t-2026-12-20` | Model served |
-| `ADMIN_TOKEN` | | Alert approval |
+Settings come from `config/keli.json` (committed, non-secret), overridden by `.env` and environment variables named `KELI_<SETTING>` (`keli/config.py`). Secrets live only in `.env`. The web app reads `frontend/public/config.json` at runtime (API base, colours, map styles, timeline, theme, geolocation).
+
+| Group | Settings (JSON keys) |
+|---|---|
+| Secrets (`.env`) | `KELI_DATABASE_URL`, later `S3_*`, `LLM_*`, `ADMIN_TOKEN` |
+| Recorder | `data_dir`, `rate_limit_requests`/`_window_s` (1200 / 300), `cycle_s` (600), `full_image_interval_s`, `metadata_refresh_s`, `training_radius_km` (0.5), `max_image_age_s` (frozen cameras), `workers`, timeouts, `maintenance_tasks`, `maintenance_overlap_s`, `maintenance_initial_lookback_s` |
+| Importer and labels | `imported_sensors`, `label_max_age_s` (3600), `hazard` thresholds |
+| API | `api_cors_origins`, `api_max_history_hours`, `db_pool_max`, `db_connect_timeout_s`, `live_fallback`, `live_cache_s`, `db_retry_s`, `maintenance_radius_m` (150), `maintenance_window_h` (12), `maintenance_layer_max_h`, `forecast_radius_m` (3000), `web_dist_dir` |
 
 ## 15. Testing
 
@@ -387,10 +434,26 @@ Read-only; rate limited; same attribution as the API.
 | Unit | Mapping table, validation rules, aggregation, crop geometry |
 | Contract (daily, CI) | Live Digitraffic endpoints still return the fields we use |
 | Model | Fixed test set; fails the build if metrics drop |
-| End to end | One cycle against recorded fixtures; API returns expected conditions |
+| End to end | One cycle against recorded fixtures (incl. maintenance and forecasts); API returns expected conditions |
+| Web app serving | `tests/unit/test_web.py`: files, caching, SPA fallback, `/v1` not shadowed |
+| Frontend | `npm test` (Node's built-in runner): game physics; strict TypeScript + oxlint in the build |
 
 ## 16. Observability
 
 - Structured JSON logs; `/v1/health` exposes cycle duration, images fetched, failures, data age.
 - Ops agent reads health hourly and posts a summary (and anomalies) to a private channel.
 - Alerting thresholds: data age > 30 min; > 10% image failures in a cycle; inference backlog > 2 cycles.
+
+## 17. Web app (`frontend/`)
+
+React 19 + TypeScript (strict) + Vite, MapLibre GL for the map. One process in production: `npm run build`, then `uvicorn keli.api.main:app` serves `frontend/dist` and the API on one port; in development Vite (port 5173) proxies `/v1` to the API.
+
+| Part | Notes |
+|---|---|
+| Map | Cameras and stations coloured by driving hazard or surface class (switch), ice-risk pulse, filters, search, maintenance layer, "Near me" (browser geolocation, never sent anywhere), free basemaps (CARTO, OpenFreeMap, OSM raster for light use), credits incl. Digitraffic CC BY 4.0 |
+| Camera panel | Live image (zoom, crop, save), hazard + reasons, how long it has lasted, readings, 24 h chart, winter maintenance, road forecast; resizable |
+| Time travel | 24 h slider and playback through `?at=`; disabled in the live fallback |
+| Theme | Auto dark/light by sun position (Helsinki, or the viewer's own position) |
+| Languages | `src/i18n/en.ts`, `fi.ts` (type-checked: same keys); `Intl` formatting per locale |
+| Drive game | `src/game/`: pure physics (`engine.ts`, tested), routes along real roads and bends from camera coordinates, black-ice patches, vehicles with real sizes; 3D vehicles via three.js + Kenney Car Kit (CC0) over a 2D road; offline mode from a saved snapshot |
+| Performance | Landing bundle ~380 KB gzipped (mostly MapLibre); the game (10 KB), three.js (83 KB) and models (~1.6 MB) load only when the game opens |

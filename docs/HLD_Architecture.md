@@ -149,7 +149,7 @@ flowchart LR
 | Trainer | Train and evaluate models; export ONNX | Mac M1 |
 | Inference worker | Classify each new image; write predictions | Server, CPU |
 | API | Serve conditions, history, alerts, route briefs | Server |
-| Web map | Leaflet + OpenStreetMap front end | Static, served by the API host |
+| Web app | React + TypeScript + MapLibre GL map (EN/FI), camera panel, Drive game (three.js, lazy-loaded) | Built to `frontend/dist` and served by the API process (one server) |
 | Agents | Route brief (hosted LLM), mismatch (hosted LLM, human approves), labelling and ops (local LLM) | Server / Mac |
 | MCP server | Exposes read tools and the route brief to AI assistants | Server |
 
