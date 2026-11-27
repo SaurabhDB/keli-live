@@ -1,0 +1,44 @@
+{
+ "type": "FeatureCollection",
+ "dataUpdatedTime": "2026-11-23T12:54:12Z",
+ "features": [
+  {
+   "type": "Feature",
+   "id": 1013,
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.075802,
+     60.060423,
+     0.0
+    ]
+   },
+   "properties": {
+    "id": 1013,
+    "name": "kt51_Inkoo_Innanbäck",
+    "collectionStatus": "GATHERING",
+    "dataUpdatedTime": "2022-09-27T07:20:32Z",
+    "state": null
+   }
+  },
+  {
+   "type": "Feature",
+   "id": 1052,
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.235628,
+     60.536835,
+     0.0
+    ]
+   },
+   "properties": {
+    "id": 1052,
+    "name": "vt2_Karkkila_Korpi",
+    "collectionStatus": "GATHERING",
+    "dataUpdatedTime": "2024-11-06T03:04:55Z",
+    "state": null
+   }
+  }
+ ]
+}
